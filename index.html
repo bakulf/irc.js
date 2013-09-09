@@ -1,0 +1,190 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>IRC.js</title>
+  <script src="irc.js"></script>
+</head>
+<body>
+<pre id="p"></pre>
+<script type="application/javascript">
+
+// This works only on ffos.
+
+var irc = new IRC('irc.mozilla.org', 6697, true,
+                  { nick: 'bakutest',
+                    // server_password: ''
+                    username: 'baku', // default 'nobody'
+                    realname: 'Andrea Marchesini', // default 'noname'
+                  });
+
+var irc2 = new IRC('irc.mozilla.org', 6697, true,
+                   { nick: 'bakutest2',
+                     // server_password: ''
+                     username: 'baku2', // default 'nobody'
+                     realname: 'Andrea Marchesini', // default 'noname'
+                   });
+
+var p = document.getElementById('p');
+var waitEvent = null;
+
+var tests = [
+  // How to join a #channel
+  function() { irc.join('#testtesttest'); runTest(); },
+  function() { waitEvent = ['join', 'bakutest', '#testtesttest']; },
+
+  // How to leave it
+  function() { irc.part('#testtesttest', 'why not?'); runTest(); },
+  function() { waitEvent = ['part', 'bakutest', '#testtesttest', 'why not?']; },
+
+  // A couple of join+part
+  function() { irc.join('#testtesttest'); runTest(); },
+  function() { waitEvent = ['join', 'bakutest', '#testtesttest']; },
+  function() { irc.part('#testtesttest'); runTest(); },
+  function() { waitEvent = ['part', 'bakutest', '#testtesttest', undefined]; },
+  function() { irc.join('#testtesttest'); runTest(); },
+  function() { waitEvent = ['join', 'bakutest', '#testtesttest']; },
+
+  // Topic
+  function() { irc.topic('#testtesttest', 'hello world'); runTest(); },
+  function() { waitEvent = ['topic', 'bakutest', '#testtesttest', 'hello world']; },
+
+  // Notice
+  function() { irc.notice('bakutest', 'n o t i c e'); runTest(); },
+  function() { waitEvent = ['notice', 'bakutest', 'bakutest', 'n o t i c e']; },
+
+  // let's send a message to our self
+  function() { irc.msg('bakutest', 'hi! how are you?'); runTest(); },
+  function() { waitEvent = ['privmsg', 'bakutest', 'hi! how are you?'];},
+
+  // Let's make 2 bots chatting
+  function() { irc2.join('#testtesttest'); runTest(); },
+  function() { waitEvent = ['join', 'bakutest2', '#testtesttest']; },
+
+  function() { irc.msg('#testtesttest', 'hi! someone here?'); runTest(); },
+  function() { waitEvent = ['channelmsg', 'bakutest', '#testtesttest', 'hi! someone here?'] },
+
+  // Nick change
+  function() { irc.nick('bakutest3'); runTest(); },
+  function() { waitEvent = ['nick', 'bakutest', 'bakutest3' ]},
+
+  function() { irc.kick('bakutest2', '#testtesttest', 'foo bar'); runTest(); },
+  function() { waitEvent = ['kick', 'bakutest3', 'bakutest2', '#testtesttest', 'foo bar']; },
+
+  // Invite
+  function() { irc.invite('bakutest2', '#testtesttest'); runTest(); },
+  function() { waitEvent = ['invite', 'bakutest3', 'bakutest2', '#testtesttest']; },
+
+  // Quit
+  function() { irc.quit(); runTest(); },
+  function() { irc2.quit('fooo baar'); runTest(); },
+
+/* TODO -add tests for...
+  irc.names('#texttesttest');
+  irc.list('#texttesttest');
+  irc.mode('batman', '+t');
+  irc.whois('baku3');
+*/
+];
+
+function runTest() {
+  if (!tests.length) {
+    p.innerHTML += 'Finished!<br />';
+    return;
+  }
+    
+  var test = tests.shift();
+  test();
+}
+
+function ok(what, msg) {
+    p.innerHTML += (what ? 'OK' : 'FAIL') + ': ' + msg + '<br />';
+}
+
+irc.onconnect = function() {
+  runTest();
+}
+
+irc.onjoin = irc2.onjoin = function(who, channel) {
+  if (waitEvent && waitEvent[0] == 'join' && waitEvent[1] == who &&
+      waitEvent[2] == channel) {
+    ok(true, who + ' entered on ' + channel);
+    runTest();
+  }
+}
+
+irc.onpart = function(who, channel, reason) {
+  if (waitEvent && waitEvent[0] == 'part' && waitEvent[1] == who &&
+      waitEvent[2] == channel && waitEvent[3] == reason) {
+    ok(true, who + ' left channel ' + channel);
+    runTest();
+  }
+}
+
+irc.ontopic = function(who, channel, topic) {
+  if (waitEvent && waitEvent[0] == 'topic' && waitEvent[1] == who &&
+      waitEvent[2] == channel && waitEvent[3] == topic) {
+    ok(true, 'topic has been changed by ' + who + ' on ' + channel + ' to ' + topic);
+    runTest();
+  }
+}
+
+irc.onnotice = function(who, nickOrChannel, text) {
+  if (waitEvent && waitEvent[0] == 'notice' && waitEvent[1] == who &&
+      waitEvent[2] == nickOrChannel && waitEvent[3] == text) {
+    ok(true, 'notice has been received by ' + who + ' for ' + nickOrChannel + ': ' + text);
+    runTest();
+  }
+}
+
+irc.onprivmsg = irc2.onprivmsg = function(who, message) {
+  if (waitEvent && waitEvent[0] == 'privmsg' && waitEvent[1] == who &&
+      waitEvent[2] == message) {
+    ok(true, 'A message sent from ' + who + ' has been received: ' + message);
+    runTest();
+  }
+}
+
+irc.onchannelmsg = irc2.onchannelmsg = function(who, channel, message) {
+  if (waitEvent && waitEvent[0] == 'channelmsg' && waitEvent[1] == who &&
+      waitEvent[2] == channel && waitEvent[3] == message) {
+    ok(true, 'A message sent from ' + who + ' to channel ' + channel + ' has been received: ' + message);
+    runTest();
+  }
+}
+
+irc.onnickchange = function(oldNick, newNick) {
+  if (waitEvent && waitEvent[0] == 'nick' && waitEvent[1] == oldNick &&
+      waitEvent[2] == newNick) {
+    ok(true, 'Nick ' + oldNick + ' now is called ' + newNick);
+    runTest();
+  }
+}
+
+irc.onkick = function(who, kicked, channel, reason) {
+  if (waitEvent && waitEvent[0] == 'kick' && waitEvent[1] == who &&
+      waitEvent[2] == kicked && waitEvent[3] == channel && waitEvent[4] == reason) {
+    ok(true, 'Nick ' + kicked + ' has been kicked by ' + who + ' from ' + channel + ' saying: ' + reason);
+    runTest();
+  }
+}
+
+irc2.oninvite = irc.oninvite = function(who, invited, channel) {
+  if (waitEvent && waitEvent[0] == 'invite' && waitEvent[1] == who &&
+      waitEvent[2] == invited && waitEvent[3] == channel) {
+    ok(true, 'Nick ' + invited + ' has been invited by ' + who + ' in ' + channel);
+    runTest();
+  }
+}
+
+irc.onmode = function(who, where, mode) {
+  console.log('mode changed:' + who + '=>' + where + ' => ' + mode);
+}
+
+irc.onrawdata = function(prefix, command, params) {
+  // for custom stuff
+}
+
+</script>
+</body>
+</html>
+
