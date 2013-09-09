@@ -1,0 +1,2 @@
+IRC.js implements the basic of IRC protocol in JS using mozTCPSocket.
+index.html contains unit-tests. Use it as documentation.
